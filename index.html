@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daily Increment</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-900 text-white flex justify-center items-center min-h-screen">
+
+<!-- PIN LOCK SCREEN -->
+<div id="lockScreen" class="fixed inset-0 bg-black flex items-center justify-center z-50">
+<div class="bg-gray-800 p-6 rounded-lg text-center w-72">
+
+<h2 class="text-xl font-bold mb-4">🔒 Enter PIN</h2>
+
+<input id="pinInput"
+type="password"
+maxlength="4"
+placeholder="Enter PIN"
+class="w-full p-2 rounded bg-gray-700 text-center mb-3"/>
+
+<button onclick="checkPin()"
+class="w-full bg-green-500 p-2 rounded">
+Unlock
+</button>
+
+</div>
+</div>
+
+
+<div class="bg-gray-800 p-6 rounded-xl shadow-xl w-96">
+
+<h1 class="text-2xl font-bold text-center mb-4">Daily Increment</h1>
+
+<!-- Balance -->
+<div class="text-center mb-2">
+<p class="text-gray-400">Current Balance</p>
+<p id="balance" class="text-3xl font-bold text-green-400">₹0</p>
+</div>
+
+<!-- Countdown -->
+<div class="text-center text-sm text-yellow-400 mb-4">
+Next ₹1,00,000 in <span id="timer">--:--:--</span>
+</div>
+
+<!-- Daily Stats -->
+<div class="bg-gray-700 p-2 rounded mb-4 text-center">
+Today's Expense: ₹<span id="todayExpense">0</span>
+</div>
+
+<!-- Input -->
+<div class="space-y-3 mb-4">
+
+<select class="w-full p-2 rounded bg-gray-700" disabled>
+<option>Expense</option>
+</select>
+
+<input id="amount" type="number" placeholder="Enter Amount"
+class="w-full p-2 rounded bg-gray-700">
+
+<input id="note" type="text" placeholder="Note"
+class="w-full p-2 rounded bg-gray-700">
+
+<button onclick="addExpense()"
+class="w-full bg-red-500 hover:bg-red-600 p-2 rounded font-semibold">
+Add Expense
+</button>
+
+</div>
+
+<!-- History -->
+<h2 class="text-lg font-semibold mb-2">Expense History</h2>
+
+<div id="historyContainer"
+class="bg-gray-900 p-3 rounded h-48 overflow-y-auto space-y-2">
+</div>
+
+</div>
+
+<script>
+
+
+/* ---------------- PIN LOCK ---------------- */
+
+const correctPin="5001"
+
+localStorage.removeItem("siteUnlocked")
+
+function checkPin(){
+
+let pin=document.getElementById("pinInput").value
+
+if(pin===correctPin){
+
+localStorage.setItem("siteUnlocked","true")
+document.getElementById("lockScreen").style.display="none"
+
+}else{
+
+alert("Wrong PIN")
+location.reload()
+
+}
+
+}
+
+function checkLock(){
+
+let unlocked=localStorage.getItem("siteUnlocked")
+
+if(unlocked==="true"){
+document.getElementById("lockScreen").style.display="none"
+}
+
+}
+
+checkLock()
+
+let balance = Number(localStorage.getItem("balance")) || 0
+let lastIncrement = localStorage.getItem("lastIncrement")
+const DAILY_INCREMENT = 100000
+
+// Balance animation
+function animateBalance(newBalance){
+
+let el = document.getElementById("balance")
+let start = 0
+let duration = 500
+let startTime = null
+
+function animate(time){
+
+if(!startTime) startTime = time
+
+let progress = time - startTime
+let value = Math.min(progress / duration * newBalance, newBalance)
+
+el.innerText = "₹" + Math.floor(value).toLocaleString()
+
+if(progress < duration) requestAnimationFrame(animate)
+
+}
+
+requestAnimationFrame(animate)
+
+}
+
+function updateBalance(){
+
+animateBalance(balance)
+localStorage.setItem("balance", balance)
+
+}
+
+// Daily increment
+function checkDailyIncrement(){
+
+let today = new Date().toDateString()
+
+if(lastIncrement !== today){
+
+balance += DAILY_INCREMENT
+
+localStorage.setItem("lastIncrement", today)
+localStorage.setItem("balance", balance)
+
+}
+
+updateBalance()
+
+}
+
+// Add expense
+function addExpense(){
+
+let amount = Number(document.getElementById("amount").value)
+let note = document.getElementById("note").value
+
+if(!amount) return alert("Enter amount")
+
+balance -= amount
+
+let history = JSON.parse(localStorage.getItem("history")) || []
+
+history.push({
+amount,
+note,
+date: new Date().toLocaleString()
+})
+
+localStorage.setItem("history", JSON.stringify(history))
+localStorage.setItem("balance", balance)
+
+document.getElementById("amount").value=""
+document.getElementById("note").value=""
+
+updateBalance()
+showHistory()
+calculateTodayExpense()
+
+}
+
+// Delete expense
+function deleteExpense(index){
+
+let history = JSON.parse(localStorage.getItem("history")) || []
+
+balance += history[index].amount
+
+history.splice(index,1)
+
+localStorage.setItem("history",JSON.stringify(history))
+localStorage.setItem("balance",balance)
+
+updateBalance()
+showHistory()
+calculateTodayExpense()
+
+}
+
+// Show history
+function showHistory(){
+
+let history = JSON.parse(localStorage.getItem("history")) || []
+let container = document.getElementById("historyContainer")
+
+container.innerHTML=""
+
+history.slice().reverse().forEach((item,i)=>{
+
+let div=document.createElement("div")
+
+div.className="bg-gray-700 p-2 rounded text-sm"
+
+div.innerHTML=`
+<div class="flex justify-between items-center">
+<span class="text-red-400">- ₹${item.amount}</span>
+<button onclick="deleteExpense(${history.length-1-i})"
+class="text-xs bg-red-600 px-2 rounded">Delete</button>
+</div>
+
+<div class="text-gray-300">${item.note}</div>
+<div class="text-gray-500 text-xs">${item.date}</div>
+`
+
+container.appendChild(div)
+
+})
+
+}
+
+// Daily statistics
+function calculateTodayExpense(){
+
+let history = JSON.parse(localStorage.getItem("history")) || []
+let today = new Date().toDateString()
+
+let total=0
+
+history.forEach(item=>{
+if(new Date(item.date).toDateString()==today){
+total+=item.amount
+}
+})
+
+document.getElementById("todayExpense").innerText=total
+
+}
+
+// Countdown timer
+function updateTimer(){
+
+let now=new Date()
+
+let midnight=new Date()
+midnight.setHours(24,0,0,0)
+
+let diff=midnight-now
+
+let h=Math.floor(diff/1000/60/60)
+let m=Math.floor(diff/1000/60)%60
+let s=Math.floor(diff/1000)%60
+
+document.getElementById("timer").innerText=
+`${h.toString().padStart(2,"0")}:
+${m.toString().padStart(2,"0")}:
+${s.toString().padStart(2,"0")}`
+
+}
+
+setInterval(updateTimer,1000)
+
+checkDailyIncrement()
+showHistory()
+calculateTodayExpense()
+updateTimer()
+
+</script>
+
+</body>
+</html>
